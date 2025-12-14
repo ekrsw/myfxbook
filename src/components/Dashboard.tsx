@@ -18,25 +18,42 @@ interface ApiResponse {
   timestamp: string;
 }
 
+interface ExchangeRateResponse {
+  success: boolean;
+  rate?: number;
+  error?: string;
+}
+
 const REFRESH_INTERVAL = 30000;
+const INITIAL_DEPOSIT_JPY = 19000000;
 
 export default function Dashboard() {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [usdJpy, setUsdJpy] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const response = await fetch('/api/myfxbook');
-      const data: ApiResponse = await response.json();
+      const [accountsRes, rateRes] = await Promise.all([
+        fetch('/api/myfxbook'),
+        fetch('/api/exchange-rate'),
+      ]);
 
-      if (data.success && data.accounts) {
-        setAccounts(data.accounts);
-        setLastUpdate(data.timestamp);
+      const accountsData: ApiResponse = await accountsRes.json();
+      const rateData: ExchangeRateResponse = await rateRes.json();
+
+      if (accountsData.success && accountsData.accounts) {
+        setAccounts(accountsData.accounts);
+        setLastUpdate(accountsData.timestamp);
         setError(null);
       } else {
-        setError(data.error || 'Failed to fetch data');
+        setError(accountsData.error || 'Failed to fetch data');
+      }
+
+      if (rateData.success && rateData.rate) {
+        setUsdJpy(rateData.rate);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
@@ -59,9 +76,18 @@ export default function Dashboard() {
     }).format(value);
   };
 
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat('ja-JP').format(Math.round(value));
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('ja-JP');
   };
+
+  // Calculate totals
+  const totalBalanceUsd = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+  const balanceJpy = usdJpy ? totalBalanceUsd * usdJpy : null;
+  const profitJpy = balanceJpy ? balanceJpy - INITIAL_DEPOSIT_JPY : null;
 
   if (loading) {
     return (
@@ -101,6 +127,28 @@ export default function Dashboard() {
           >
             更新
           </button>
+        </div>
+      </div>
+
+      {/* Summary Section */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 font-mono text-sm space-y-1">
+        <div className="flex justify-between">
+          <span className="text-gray-600">USD/JPY:</span>
+          <span className="text-gray-900">{usdJpy ? usdJpy.toFixed(2) : '---'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-600">Initial Deposit(JPY):</span>
+          <span className="text-gray-900">{formatNumber(INITIAL_DEPOSIT_JPY)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-600">Balance(JPY):</span>
+          <span className="text-gray-900">{balanceJpy ? formatNumber(balanceJpy) : '---'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-600">Profit(JPY):</span>
+          <span className={profitJpy !== null ? (profitJpy >= 0 ? 'text-green-600 font-bold' : 'text-red-600 font-bold') : 'text-gray-900'}>
+            {profitJpy !== null ? formatNumber(profitJpy) : '---'}
+          </span>
         </div>
       </div>
 
@@ -153,10 +201,7 @@ export default function Dashboard() {
                   Total
                 </td>
                 <td className="px-4 py-1.5 text-sm text-right font-semibold text-gray-900 font-mono">
-                  {formatCurrency(
-                    accounts.reduce((sum, acc) => sum + acc.balance, 0),
-                    accounts[0]?.currency || 'JPY'
-                  )}
+                  {formatCurrency(totalBalanceUsd, accounts[0]?.currency || 'USD')}
                 </td>
                 <td className="px-4 py-1.5 text-sm text-right">
                   <span
@@ -168,7 +213,7 @@ export default function Dashboard() {
                   >
                     {formatCurrency(
                       accounts.reduce((sum, acc) => sum + acc.profit, 0),
-                      accounts[0]?.currency || 'JPY'
+                      accounts[0]?.currency || 'USD'
                     )}
                   </span>
                 </td>
