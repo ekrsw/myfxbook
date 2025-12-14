@@ -166,36 +166,39 @@ export default function Dashboard() {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <table className="w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-1.5 text-left text-sm font-semibold text-gray-700 border-b">
+              <th className="px-2 sm:px-4 py-1.5 text-left text-sm font-semibold text-gray-700 border-b">
                 EA
               </th>
-              <th className="px-4 py-1.5 text-left text-sm font-semibold text-gray-700 border-b">
+              <th className="px-2 sm:px-4 py-1.5 text-left text-sm font-semibold text-gray-700 border-b">
                 Account ID
               </th>
-              <th className="px-4 py-1.5 text-right text-sm font-semibold text-gray-700 border-b">
+              <th className="hidden sm:table-cell px-4 py-1.5 text-right text-sm font-semibold text-gray-700 border-b">
                 Balance
               </th>
-              <th className="px-4 py-1.5 text-right text-sm font-semibold text-gray-700 border-b">
+              <th className="hidden sm:table-cell px-4 py-1.5 text-right text-sm font-semibold text-gray-700 border-b">
                 Profit
+              </th>
+              <th className="sm:hidden px-2 py-1.5 text-right text-sm font-semibold text-gray-700 border-b">
+                Balance / Profit
               </th>
             </tr>
           </thead>
           <tbody>
             {accounts.map((account) => (
               <tr key={account.id} className="hover:bg-gray-50">
-                <td className="px-4 py-1.5 text-sm text-gray-900 border-b border-gray-200">
+                <td className="px-2 sm:px-4 py-1.5 text-sm text-gray-900 border-b border-gray-200">
                   {account.name}
                 </td>
-                <td className="px-4 py-1.5 text-sm text-gray-600 border-b border-gray-200">
+                <td className="px-2 sm:px-4 py-1.5 text-sm text-gray-600 border-b border-gray-200">
                   {account.accountId}
                 </td>
-                <td className="px-4 py-1.5 text-sm text-right text-gray-900 border-b border-gray-200 font-mono">
+                <td className="hidden sm:table-cell px-4 py-1.5 text-sm text-right text-gray-900 border-b border-gray-200 font-mono">
                   {formatCurrency(account.balance, account.currency)}
                 </td>
-                <td className="px-4 py-1.5 text-sm text-right border-b border-gray-200">
+                <td className="hidden sm:table-cell px-4 py-1.5 text-sm text-right border-b border-gray-200">
                   <span
                     className={`font-mono ${
                       account.profit >= 0 ? 'text-green-600' : 'text-red-600'
@@ -204,19 +207,31 @@ export default function Dashboard() {
                     {formatCurrency(account.profit, account.currency)}
                   </span>
                 </td>
+                <td className="sm:hidden px-2 py-1.5 text-right border-b border-gray-200">
+                  <div className="text-sm text-gray-900 font-mono">
+                    {formatCurrency(account.balance, account.currency)}
+                  </div>
+                  <div
+                    className={`text-sm font-mono ${
+                      account.profit >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}
+                  >
+                    {formatCurrency(account.profit, account.currency)}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
           {accounts.length > 0 && (
             <tfoot className="bg-gray-100">
               <tr>
-                <td className="px-4 py-1.5 text-sm font-semibold text-gray-900" colSpan={2}>
+                <td className="px-2 sm:px-4 py-1.5 text-sm font-semibold text-gray-900" colSpan={2}>
                   Total
                 </td>
-                <td className="px-4 py-1.5 text-sm text-right font-semibold text-gray-900 font-mono">
+                <td className="hidden sm:table-cell px-4 py-1.5 text-sm text-right font-semibold text-gray-900 font-mono">
                   {formatCurrency(totalBalanceUsd, accounts[0]?.currency || 'USD')}
                 </td>
-                <td className="px-4 py-1.5 text-sm text-right">
+                <td className="hidden sm:table-cell px-4 py-1.5 text-sm text-right">
                   <span
                     className={`font-semibold font-mono ${
                       accounts.reduce((sum, acc) => sum + acc.profit, 0) >= 0
@@ -229,6 +244,23 @@ export default function Dashboard() {
                       accounts[0]?.currency || 'USD'
                     )}
                   </span>
+                </td>
+                <td className="sm:hidden px-2 py-1.5 text-right">
+                  <div className="text-sm font-semibold text-gray-900 font-mono">
+                    {formatCurrency(totalBalanceUsd, accounts[0]?.currency || 'USD')}
+                  </div>
+                  <div
+                    className={`text-sm font-semibold font-mono ${
+                      accounts.reduce((sum, acc) => sum + acc.profit, 0) >= 0
+                        ? 'text-green-600'
+                        : 'text-red-600'
+                    }`}
+                  >
+                    {formatCurrency(
+                      accounts.reduce((sum, acc) => sum + acc.profit, 0),
+                      accounts[0]?.currency || 'USD'
+                    )}
+                  </div>
                 </td>
               </tr>
             </tfoot>
