@@ -186,16 +186,16 @@ export default function Dashboard() {
           <tbody>
             {accounts.map((account) => (
               <tr key={account.id} className="hover:bg-gray-50">
-                <td className="px-4 py-1.5 text-sm text-gray-900 border-b">
+                <td className="px-4 py-1.5 text-sm text-gray-900 border-b border-gray-200">
                   {account.name}
                 </td>
-                <td className="px-4 py-1.5 text-sm text-gray-600 border-b">
+                <td className="px-4 py-1.5 text-sm text-gray-600 border-b border-gray-200">
                   {account.accountId}
                 </td>
-                <td className="px-4 py-1.5 text-sm text-right text-gray-900 border-b font-mono">
+                <td className="px-4 py-1.5 text-sm text-right text-gray-900 border-b border-gray-200 font-mono">
                   {formatCurrency(account.balance, account.currency)}
                 </td>
-                <td className="px-4 py-1.5 text-sm text-right border-b">
+                <td className="px-4 py-1.5 text-sm text-right border-b border-gray-200">
                   <span
                     className={`font-mono ${
                       account.profit >= 0 ? 'text-green-600' : 'text-red-600'
