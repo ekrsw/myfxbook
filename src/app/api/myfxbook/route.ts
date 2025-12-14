@@ -1,6 +1,26 @@
 import { NextResponse } from 'next/server';
+import { ProxyAgent, fetch as undiciFetch } from 'undici';
 
 const MYFXBOOK_API_BASE = 'https://www.myfxbook.com/api';
+
+// Get proxy from environment
+const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+const proxyAgent = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+
+if (proxyUrl) {
+  console.log('[Myfxbook] Using proxy:', proxyUrl.replace(/:[^:@]+@/, ':****@'));
+}
+
+// Custom fetch that uses proxy
+async function proxyFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  if (proxyAgent) {
+    return undiciFetch(url, {
+      ...options,
+      dispatcher: proxyAgent,
+    } as Parameters<typeof undiciFetch>[1]) as unknown as Response;
+  }
+  return fetch(url, options);
+}
 
 interface MyfxbookAccount {
   id: number;
@@ -59,7 +79,7 @@ async function login(forceNew: boolean = false): Promise<string> {
 
   console.log('[Myfxbook] Attempting login...');
 
-  const response = await fetch(loginUrl, {
+  const response = await proxyFetch(loginUrl, {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
@@ -88,7 +108,7 @@ async function getAccounts(session: string): Promise<MyfxbookAccount[]> {
 
   console.log('[Myfxbook] Fetching accounts...');
 
-  const response = await fetch(accountsUrl, {
+  const response = await proxyFetch(accountsUrl, {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
