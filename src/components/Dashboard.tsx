@@ -170,7 +170,7 @@ export default function Dashboard() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-1.5 text-left text-sm font-semibold text-gray-700 border-b">
-                Name
+                EA
               </th>
               <th className="px-4 py-1.5 text-left text-sm font-semibold text-gray-700 border-b">
                 Account ID
