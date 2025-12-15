@@ -146,19 +146,19 @@ export default function Dashboard() {
       {/* Summary Section */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 font-mono text-sm space-y-1">
         <div className="flex justify-between">
-          <span className="text-gray-600">USD/JPY:</span>
+          <span className="text-gray-600 font-bold">USD/JPY:</span>
           <span className="text-gray-900">{usdJpy ? usdJpy.toFixed(2) : '---'}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">Initial Deposit(JPY):</span>
+          <span className="text-gray-600 font-bold">Initial Deposit(JPY):</span>
           <span className="text-gray-900">{formatNumber(INITIAL_DEPOSIT_JPY)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">Balance(JPY):</span>
+          <span className="text-gray-600 font-bold">Balance(JPY):</span>
           <span className="text-gray-900">{balanceJpy ? formatNumber(balanceJpy) : '---'}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">Profit(JPY):</span>
+          <span className="text-gray-600 font-bold">Profit(JPY):</span>
           <span className={profitJpy !== null ? (profitJpy >= 0 ? 'text-green-600 font-bold' : 'text-red-600 font-bold') : 'text-gray-900'}>
             {profitJpy !== null ? formatNumber(profitJpy) : '---'}
           </span>
