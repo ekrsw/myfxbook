@@ -18,8 +18,9 @@ async function proxyFetch(url: string, options: RequestInit = {}): Promise<Respo
 
 export async function GET() {
   try {
+    // Frankfurter API (ECB rates, free, no API key required)
     const response = await proxyFetch(
-      'https://api.exchangerate-api.com/v4/latest/USD',
+      'https://api.frankfurter.app/latest?from=USD&to=JPY',
       { cache: 'no-store' } as RequestInit
     );
 
