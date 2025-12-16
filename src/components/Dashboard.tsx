@@ -146,7 +146,7 @@ export default function Dashboard() {
       {/* Summary Section */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 font-mono text-sm space-y-1">
         <div className="flex justify-between">
-          <span className="text-gray-600" font-bold>USD/JPY:</span>
+          <span className="text-gray-600 font-bold">USD/JPY:</span>
           <span className="text-gray-900">{usdJpy ? usdJpy.toFixed(2) : '---'}</span>
         </div>
         <div className="flex justify-between">
