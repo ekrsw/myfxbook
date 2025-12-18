@@ -25,7 +25,7 @@ interface ExchangeRateResponse {
 }
 
 const REFRESH_INTERVAL = 30000;
-const INITIAL_DEPOSIT_JPY = 19000000;
+const INITIAL_DEPOSIT_JPY = 23000000;
 
 export default function Dashboard() {
   const [accounts, setAccounts] = useState<Account[]>([]);
