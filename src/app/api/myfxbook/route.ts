@@ -83,11 +83,28 @@ async function login(forceNew: boolean = false): Promise<string> {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     },
     cache: 'no-store',
   });
 
-  const data = await response.json();
+  const contentType = response.headers.get('content-type') || '';
+  const responseText = await response.text();
+
+  // Check if response is HTML instead of JSON (blocked/error page)
+  if (!contentType.includes('application/json') || responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
+    console.error('[Myfxbook] Received HTML instead of JSON. Status:', response.status);
+    console.error('[Myfxbook] Response preview:', responseText.substring(0, 500));
+    throw new Error(`Myfxbook returned HTML (status ${response.status}). Likely blocked, CAPTCHA, or geo-restricted. Check if proxy is needed.`);
+  }
+
+  let data: LoginResponse;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    console.error('[Myfxbook] Failed to parse JSON:', responseText.substring(0, 200));
+    throw new Error('Invalid JSON response from Myfxbook API');
+  }
 
   console.log('[Myfxbook] Login raw response:', JSON.stringify(data, null, 2));
 
@@ -112,11 +129,25 @@ async function getAccounts(session: string): Promise<MyfxbookAccount[]> {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     },
     cache: 'no-store',
   });
 
-  const data: AccountsResponse = await response.json();
+  const contentType = response.headers.get('content-type') || '';
+  const responseText = await response.text();
+
+  if (!contentType.includes('application/json') || responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
+    console.error('[Myfxbook] Accounts: Received HTML instead of JSON. Status:', response.status);
+    throw new Error(`Myfxbook returned HTML (status ${response.status})`);
+  }
+
+  let data: AccountsResponse;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error('Invalid JSON response from Myfxbook accounts API');
+  }
 
   console.log('[Myfxbook] Accounts response:', { error: data.error, message: data.message, accountCount: data.accounts?.length });
 
