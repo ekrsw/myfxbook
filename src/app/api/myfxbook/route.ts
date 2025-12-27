@@ -1,24 +1,74 @@
 import { NextResponse } from 'next/server';
-import { ProxyAgent, fetch as undiciFetch } from 'undici';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 
 const MYFXBOOK_API_BASE = 'https://www.myfxbook.com/api';
 
-// Get proxy from environment
-const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
-const proxyAgent = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+// Cloudflare challenge detection patterns
+const CLOUDFLARE_PATTERNS = [
+  'cf-challenge',
+  'cf_chl',
+  'cf-spinner',
+  'Checking your browser',
+  'Just a moment',
+  'Enable JavaScript and cookies to continue',
+  'Cloudflare',
+  'Ray ID:',
+  '__cf_bm',
+  'challenge-platform',
+];
 
-if (proxyUrl) {
-  console.log('[Myfxbook] Using proxy:', proxyUrl.replace(/:[^:@]+@/, ':****@'));
+function isCloudflareChallenge(html: string): boolean {
+  return CLOUDFLARE_PATTERNS.some(pattern => html.includes(pattern));
 }
 
-// Custom fetch that uses proxy
-async function proxyFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  if (proxyAgent) {
-    return undiciFetch(url, {
-      ...options,
-      dispatcher: proxyAgent,
-    } as Parameters<typeof undiciFetch>[1]) as unknown as Response;
+class CloudflareBlockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CloudflareBlockedError';
   }
+}
+
+// Browser-like headers to avoid bot detection
+const BROWSER_HEADERS = {
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Referer': 'https://www.myfxbook.com/',
+  'Origin': 'https://www.myfxbook.com',
+  'Connection': 'keep-alive',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin',
+  'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"macOS"',
+};
+
+// Custom fetch that uses SOCKS5 proxy
+async function proxyFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+  
+  if (proxyUrl) {
+    console.log('[Myfxbook] Using SOCKS proxy:', proxyUrl.replace(/:[^:@]+@/, ':****@'));
+    try {
+      // Convert http:// to socks5:// if needed for NordVPN SOCKS servers
+      const socksUrl = proxyUrl.replace(/^http:\/\//, 'socks5://');
+      const agent = new SocksProxyAgent(socksUrl);
+      
+      const response = await fetch(url, {
+        ...options,
+        // @ts-expect-error - agent is valid for Node.js fetch
+        agent,
+      });
+      return response;
+    } catch (error) {
+      console.error('[Myfxbook] Proxy fetch error:', error instanceof Error ? error.message : error);
+      throw error;
+    }
+  }
+  
+  console.log('[Myfxbook] No proxy configured, using direct connection');
   return fetch(url, options);
 }
 
@@ -81,10 +131,7 @@ async function login(forceNew: boolean = false): Promise<string> {
 
   const response = await proxyFetch(loginUrl, {
     method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    },
+    headers: BROWSER_HEADERS,
     cache: 'no-store',
   });
 
@@ -95,6 +142,13 @@ async function login(forceNew: boolean = false): Promise<string> {
   if (!contentType.includes('application/json') || responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
     console.error('[Myfxbook] Received HTML instead of JSON. Status:', response.status);
     console.error('[Myfxbook] Response preview:', responseText.substring(0, 500));
+
+    // Check for Cloudflare challenge
+    if (isCloudflareChallenge(responseText)) {
+      console.error('[Myfxbook] ⚠️ Cloudflare challenge detected!');
+      throw new CloudflareBlockedError('Cloudflareチャレンジが検出されました。プロキシを変更するか、しばらく待ってから再試行してください。');
+    }
+
     throw new Error(`Myfxbook returned HTML (status ${response.status}). Likely blocked, CAPTCHA, or geo-restricted. Check if proxy is needed.`);
   }
 
@@ -127,10 +181,7 @@ async function getAccounts(session: string): Promise<MyfxbookAccount[]> {
 
   const response = await proxyFetch(accountsUrl, {
     method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    },
+    headers: BROWSER_HEADERS,
     cache: 'no-store',
   });
 
@@ -139,6 +190,13 @@ async function getAccounts(session: string): Promise<MyfxbookAccount[]> {
 
   if (!contentType.includes('application/json') || responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
     console.error('[Myfxbook] Accounts: Received HTML instead of JSON. Status:', response.status);
+
+    // Check for Cloudflare challenge
+    if (isCloudflareChallenge(responseText)) {
+      console.error('[Myfxbook] ⚠️ Cloudflare challenge detected during accounts fetch!');
+      throw new CloudflareBlockedError('Cloudflareチャレンジが検出されました。プロキシを変更するか、しばらく待ってから再試行してください。');
+    }
+
     throw new Error(`Myfxbook returned HTML (status ${response.status})`);
   }
 
@@ -222,10 +280,29 @@ export async function GET() {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Myfxbook] Error:', errorMessage);
 
+    // Handle Cloudflare challenge with 503 status (Service Unavailable)
+    if (error instanceof CloudflareBlockedError) {
+      console.error('[Myfxbook] ⚠️ Returning 503 due to Cloudflare challenge');
+      return NextResponse.json(
+        {
+          success: false,
+          error: errorMessage,
+          errorType: 'CLOUDFLARE_CHALLENGE',
+          retryable: true,
+          message: 'Cloudflareによりアクセスがブロックされています。プロキシ設定を確認するか、しばらく待ってから再試行してください。',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 503 }
+      );
+    }
+
+    // Other errors return 500 but don't crash the server
     return NextResponse.json(
       {
         success: false,
         error: errorMessage,
+        errorType: 'API_ERROR',
+        retryable: false,
         timestamp: new Date().toISOString(),
       },
       { status: 500 }
