@@ -1,24 +1,49 @@
 import { NextResponse } from 'next/server';
-import { ProxyAgent, fetch as undiciFetch } from 'undici';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 
 const MYFXBOOK_API_BASE = 'https://www.myfxbook.com/api';
 
-// Get proxy from environment
-const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
-const proxyAgent = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+// Browser-like headers to avoid bot detection
+const BROWSER_HEADERS = {
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Referer': 'https://www.myfxbook.com/',
+  'Origin': 'https://www.myfxbook.com',
+  'Connection': 'keep-alive',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin',
+  'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"macOS"',
+};
 
-if (proxyUrl) {
-  console.log('[Myfxbook] Using proxy:', proxyUrl.replace(/:[^:@]+@/, ':****@'));
-}
-
-// Custom fetch that uses proxy
+// Custom fetch that uses SOCKS5 proxy
 async function proxyFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  if (proxyAgent) {
-    return undiciFetch(url, {
-      ...options,
-      dispatcher: proxyAgent,
-    } as Parameters<typeof undiciFetch>[1]) as unknown as Response;
+  const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+  
+  if (proxyUrl) {
+    console.log('[Myfxbook] Using SOCKS proxy:', proxyUrl.replace(/:[^:@]+@/, ':****@'));
+    try {
+      // Convert http:// to socks5:// if needed for NordVPN SOCKS servers
+      const socksUrl = proxyUrl.replace(/^http:\/\//, 'socks5://');
+      const agent = new SocksProxyAgent(socksUrl);
+      
+      const response = await fetch(url, {
+        ...options,
+        // @ts-expect-error - agent is valid for Node.js fetch
+        agent,
+      });
+      return response;
+    } catch (error) {
+      console.error('[Myfxbook] Proxy fetch error:', error instanceof Error ? error.message : error);
+      throw error;
+    }
   }
+  
+  console.log('[Myfxbook] No proxy configured, using direct connection');
   return fetch(url, options);
 }
 
@@ -81,10 +106,7 @@ async function login(forceNew: boolean = false): Promise<string> {
 
   const response = await proxyFetch(loginUrl, {
     method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    },
+    headers: BROWSER_HEADERS,
     cache: 'no-store',
   });
 
@@ -127,10 +149,7 @@ async function getAccounts(session: string): Promise<MyfxbookAccount[]> {
 
   const response = await proxyFetch(accountsUrl, {
     method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    },
+    headers: BROWSER_HEADERS,
     cache: 'no-store',
   });
 

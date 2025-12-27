@@ -1,18 +1,28 @@
 import { NextResponse } from 'next/server';
-import { ProxyAgent, fetch as undiciFetch } from 'undici';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 
-// Get proxy from environment
-const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
-const proxyAgent = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
-
-// Custom fetch that uses proxy
+// Custom fetch that uses SOCKS5 proxy
 async function proxyFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  if (proxyAgent) {
-    return undiciFetch(url, {
-      ...options,
-      dispatcher: proxyAgent,
-    } as Parameters<typeof undiciFetch>[1]) as unknown as Response;
+  const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+  
+  if (proxyUrl) {
+    console.log('[ExchangeRate] Using SOCKS proxy:', proxyUrl.replace(/:[^:@]+@/, ':****@'));
+    try {
+      const socksUrl = proxyUrl.replace(/^http:\/\//, 'socks5://');
+      const agent = new SocksProxyAgent(socksUrl);
+      
+      const response = await fetch(url, {
+        ...options,
+        // @ts-expect-error - agent is valid for Node.js fetch
+        agent,
+      });
+      return response;
+    } catch (error) {
+      console.error('[ExchangeRate] Proxy fetch error:', error instanceof Error ? error.message : error);
+      throw error;
+    }
   }
+  
   return fetch(url, options);
 }
 
