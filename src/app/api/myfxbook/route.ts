@@ -3,6 +3,31 @@ import { SocksProxyAgent } from 'socks-proxy-agent';
 
 const MYFXBOOK_API_BASE = 'https://www.myfxbook.com/api';
 
+// Cloudflare challenge detection patterns
+const CLOUDFLARE_PATTERNS = [
+  'cf-challenge',
+  'cf_chl',
+  'cf-spinner',
+  'Checking your browser',
+  'Just a moment',
+  'Enable JavaScript and cookies to continue',
+  'Cloudflare',
+  'Ray ID:',
+  '__cf_bm',
+  'challenge-platform',
+];
+
+function isCloudflareChallenge(html: string): boolean {
+  return CLOUDFLARE_PATTERNS.some(pattern => html.includes(pattern));
+}
+
+class CloudflareBlockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CloudflareBlockedError';
+  }
+}
+
 // Browser-like headers to avoid bot detection
 const BROWSER_HEADERS = {
   'Accept': 'application/json, text/plain, */*',
@@ -117,6 +142,13 @@ async function login(forceNew: boolean = false): Promise<string> {
   if (!contentType.includes('application/json') || responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
     console.error('[Myfxbook] Received HTML instead of JSON. Status:', response.status);
     console.error('[Myfxbook] Response preview:', responseText.substring(0, 500));
+
+    // Check for Cloudflare challenge
+    if (isCloudflareChallenge(responseText)) {
+      console.error('[Myfxbook] ⚠️ Cloudflare challenge detected!');
+      throw new CloudflareBlockedError('Cloudflareチャレンジが検出されました。プロキシを変更するか、しばらく待ってから再試行してください。');
+    }
+
     throw new Error(`Myfxbook returned HTML (status ${response.status}). Likely blocked, CAPTCHA, or geo-restricted. Check if proxy is needed.`);
   }
 
@@ -158,6 +190,13 @@ async function getAccounts(session: string): Promise<MyfxbookAccount[]> {
 
   if (!contentType.includes('application/json') || responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
     console.error('[Myfxbook] Accounts: Received HTML instead of JSON. Status:', response.status);
+
+    // Check for Cloudflare challenge
+    if (isCloudflareChallenge(responseText)) {
+      console.error('[Myfxbook] ⚠️ Cloudflare challenge detected during accounts fetch!');
+      throw new CloudflareBlockedError('Cloudflareチャレンジが検出されました。プロキシを変更するか、しばらく待ってから再試行してください。');
+    }
+
     throw new Error(`Myfxbook returned HTML (status ${response.status})`);
   }
 
@@ -241,10 +280,29 @@ export async function GET() {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Myfxbook] Error:', errorMessage);
 
+    // Handle Cloudflare challenge with 503 status (Service Unavailable)
+    if (error instanceof CloudflareBlockedError) {
+      console.error('[Myfxbook] ⚠️ Returning 503 due to Cloudflare challenge');
+      return NextResponse.json(
+        {
+          success: false,
+          error: errorMessage,
+          errorType: 'CLOUDFLARE_CHALLENGE',
+          retryable: true,
+          message: 'Cloudflareによりアクセスがブロックされています。プロキシ設定を確認するか、しばらく待ってから再試行してください。',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 503 }
+      );
+    }
+
+    // Other errors return 500 but don't crash the server
     return NextResponse.json(
       {
         success: false,
         error: errorMessage,
+        errorType: 'API_ERROR',
+        retryable: false,
         timestamp: new Date().toISOString(),
       },
       { status: 500 }
